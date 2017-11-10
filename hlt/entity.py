@@ -28,7 +28,7 @@ class Entity:
         self.owner = player
         self.id = entity_id
 
-    def calculate_distance_between(self, target):
+    def calculate_distance_between(self, target: object) -> object:
         """
         Calculates the distance between this object and the target.
 
@@ -106,6 +106,8 @@ class Planet(Entity):
         self.owner = owner if bool(int(owned)) else None
         self._docked_ship_ids = docked_ships
         self._docked_ships = {}
+        
+        self.targeted = 0
 
     def get_docked_ship(self, ship_id):
         """
@@ -235,6 +237,8 @@ class Ship(Entity):
         self.planet = planet if (docking_status is not Ship.DockingStatus.UNDOCKED) else None
         self._docking_progress = progress
         self._weapon_cooldown = cooldown
+        
+        self.target = 0
 
     def thrust(self, magnitude, angle):
         """
