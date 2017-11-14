@@ -17,13 +17,13 @@ import logging
 
 # GAME START
 # Here we define the bot's name as Settler and initialize the game, including communication with the Halite engine.
-game = hlt.Game("Settler")
+game = hlt.Game("ColoNessV1")
 # Then we print our start message to the logs
-logging.info("Starting my Settler bot!")
+logging.info("Starting my ColoNess bot!")
 
 nb_ship_docked=0
 
-
+#Start of the early game stratégie
 while nb_ship_docked < 3:
     game_map = game.update_map()
     command_queue = []
@@ -45,11 +45,11 @@ while nb_ship_docked < 3:
                 #skip this planet
                 continue
             dist=ship.calculate_distance_between(planet)
-            logging.info("Distance : %s",dist)
             if shortest_distance >= dist:
-                # shortest_distance = dist
-                # ship.target = planet
-                ship.target = game_map.get_planet(1)
+                shortest_distance = dist
+                ship.target = planet
+                #ship.target = game_map.get_planet(1)
+                logging.info("Ship = %s Distance : %s Planete = %s",ship.id, dist, planet.id)
         ship.target.targeted += 1
         # ship.target=game_map.get_planet(1)
 
@@ -81,7 +81,8 @@ while nb_ship_docked < 3:
      # Send our set of commands to the Halite engine for this turn
     game.send_command_queue(command_queue)
      # TURN END
-     # GAME END
+
+# EARLY GAME END
 
 
 while True:
