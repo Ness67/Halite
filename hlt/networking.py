@@ -83,6 +83,7 @@ class Game:
         self.update_map()
         self.initial_map = copy.deepcopy(self.map)
         self._send_name = True
+        self.ship_planet_target = dict()
 
     def update_map(self):
         """
