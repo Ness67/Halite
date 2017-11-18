@@ -19,7 +19,7 @@ def select_target(ship, game_map):
             shortest_distance = dist
             ship.target_planet = planet
             # ship.target_planet = game_map.get_planet(1)
-            logging.info("Ship = %s Distance : %s Planete = %s", ship.id, dist, planet.id)
+            # logging.info("Ship = %s Distance : %s Planete = %s", ship.id, dist, planet.id)
     ship.target_planet.targeted += 1
     return ship
 
@@ -42,7 +42,7 @@ def select_target_bis(ship, game_map):
             # logging.info("Ship = %s Distance : %s Planete = %s", ship.id, dist, planet.id)
     if not ship.target_planet:
         ship.target_planet = game_map.get_planet(1)
-    logging.info("Ship = %s Choosen Planete = %s", ship.id, ship.target_planet.id)
+    # logging.info("Ship = %s Choosen Planete = %s", ship.id, ship.target_planet.id)
     ship.target_planet.targeted += 1
     return ship
 
@@ -77,9 +77,9 @@ def decide_navigation(ship, game_map, avoid_ship=False, correction=90):
         # If the move is possible, add it to the command_queue (if there are too many obstacles on the way
         # or we are trapped (or we reached our destination!), navigate_command will return null;
         # don't fret though, we can run the command again the next turn)
-        logging.info("Normal navigation command : %s",navigate_command)
+        # logging.info("Normal navigation command : %s",navigate_command)
         if not navigate_command:
-            logging.info("I went in None")
+            # logging.info("I went in None")
             navigate_command = ship.navigate(
             ship.closest_point_to(ship.target_planet),
             game_map,
@@ -87,7 +87,7 @@ def decide_navigation(ship, game_map, avoid_ship=False, correction=90):
             speed=int(hlt.constants.MAX_SPEED/2),
             ignore_ships=avoid_ship)
         if not navigate_command:
-            logging.info("I went in deep None")
+            # logging.info("I went in deep None")
             navigate_command = ship.navigate(
                 ship.closest_point_to(ship.target_planet),
                 game_map,
@@ -127,9 +127,9 @@ def attack(ship, game_map,):
         # If the move is possible, add it to the command_queue (if there are too many obstacles on the way
         # or we are trapped (or we reached our destination!), navigate_command will return null;
         # don't fret though, we can run the command again the next turn)
-    logging.info("Normal navigation command : %s",navigate_command)
+    # logging.info("Normal navigation command : %s",navigate_command)
     if not navigate_command:
-        logging.info("I went in None")
+        # logging.info("I went in None")
         navigate_command = ship.navigate(
         ship.closest_point_to(ship.target_planet),
         game_map,
@@ -137,7 +137,7 @@ def attack(ship, game_map,):
         speed=int(hlt.constants.MAX_SPEED),
         ignore_ships=False)
     if not navigate_command:
-        logging.info("I went in deep None")
+        # logging.info("I went in deep None")
         navigate_command = ship.navigate(
             ship.closest_point_to(ship.target_planet),
             game_map,
@@ -151,7 +151,7 @@ def attack(ship, game_map,):
 # We use this navigation tool to attack a other ship (suicide on him)
 def attack_ship(ship, game_map,):
     # If we can dock, let's (try to) dock. If two ships try to dock at once, neither will be able to.
-    logging.info("The targeted ship is : %s", ship.target_ship)
+    # logging.info("The targeted ship is : %s", ship.target_ship)
     if ship.can_kill(ship.target_ship):
         # We add the command by appending it to the command_queue
         navigate_command = ship.navigate(
@@ -179,9 +179,9 @@ def attack_ship(ship, game_map,):
         # If the move is possible, add it to the command_queue (if there are too many obstacles on the way
         # or we are trapped (or we reached our destination!), navigate_command will return null;
         # don't fret though, we can run the command again the next turn)
-    logging.info("Normal navigation command : %s",navigate_command)
+    # logging.info("Normal navigation command : %s",navigate_command)
     if not navigate_command:
-        logging.info("I went in None")
+        # logging.info("I went in None")
         navigate_command = ship.navigate(
         ship.closest_point_to(ship.target_ship),
         game_map,
@@ -189,7 +189,7 @@ def attack_ship(ship, game_map,):
         speed=int(hlt.constants.MAX_SPEED),
         ignore_ships=False)
     if not navigate_command:
-        logging.info("I went in deep None")
+        # logging.info("I went in deep None")
         navigate_command = ship.navigate(
             ship.closest_point_to(ship.target_ship),
             game_map,
