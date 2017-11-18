@@ -145,6 +145,17 @@ class Planet(Entity):
         """
         return len(self._docked_ship_ids) >= self.num_docking_spots
 
+    def free_dock(self):
+        """
+        Give the number of free docking spot of the planet
+
+        :return: Number of plane that can still be docked
+        :rtype: int
+        """
+        nu = self.num_docking_spots - len(self._docked_ship_ids)
+        # logging.info("Nu is : %s",nu)
+        return nu
+
     def _link(self, players, planets):
         """
         This function serves to take the id values set in the parse function and use it to populate the planet
@@ -238,8 +249,9 @@ class Ship(Entity):
         self._docking_progress = progress
         self._weapon_cooldown = cooldown
         
-        self.target = 0
-        self.attak = 0
+        self.target_planet = 0
+        self.target_ship = 0
+        self.attack = 0
 
     def thrust(self, magnitude, angle):
         """
@@ -322,6 +334,16 @@ class Ship(Entity):
         """
         return self.calculate_distance_between(planet) <= planet.radius + constants.DOCK_RADIUS + constants.SHIP_RADIUS
 
+    def near_planet(self, planet):
+        """
+        Determine whether a ship can dock to a planet
+
+        :param Planet planet: The planet wherein you wish to dock
+        :return: True if can dock, False otherwise
+        :rtype: bool
+        """
+        return self.calculate_distance_between(planet) <= planet.radius + constants.NEAR_RADIUS + constants.SHIP_RADIUS
+
     def can_suicide(self, planet):
         """
         Determine whether a ship is near enough to suicide on the planet
@@ -331,6 +353,16 @@ class Ship(Entity):
         :rtype: bool
         """
         return self.calculate_distance_between(planet) <= 2*(planet.radius + constants.DOCK_RADIUS + constants.SHIP_RADIUS)
+
+    def can_kill(self, ship):
+        """
+        Determine whether a ship is near enough to suicide on the planet
+
+        :param Planet planet: The planet wherein you wish to dock
+        :return: True if in range to suicide, False otherwise
+        :rtype: bool
+        """
+        return self.calculate_distance_between(ship) <= constants.NEAR_RADIUS
 
     def _link(self, players, planets):
         """
