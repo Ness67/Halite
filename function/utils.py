@@ -1,7 +1,31 @@
 import hlt
 import logging
 import time
+import hlt
+import random
+from function import common
+
 current_milli_time = lambda: int(round(time.time() * 1000))
+
+
+def turn_init():
+    # List all enemy ship
+    for player in common.game_map.all_players():
+        if player != common.game_map.get_me():
+            common.enemy_ship.append(player.all_ships())
+    neutral_planets = []
+    # list of planets
+    for planet in common.game_map.all_planets():
+        if planet.is_owned():
+            if planet.owner == common.game_map.get_me():
+                common.my_planets.append(planet)
+            else:
+                common.enemy_planets.append(planet)
+        else:
+            neutral_planets.append(planet)
+    # Rest the target counter for the planet
+    for planet in common.game_map.all_planets():
+        planet.targeted = 0
 
 
 # Take a ship and find the closest planet
@@ -24,6 +48,7 @@ def select_target(ship, game_map):
             # logging.info("Ship = %s Distance : %s Planete = %s", ship.id, dist, planet.id)
     ship.target_planet.targeted += 1
     return ship
+
 
 def select_target_bis(ship, game_map):
     shortest_distance = 30000
@@ -61,7 +86,7 @@ def decide_navigation(ship, game_map, avoid_ship=False, correction=10):
             game_map,
             max_corrections=200,
             angular_step=5,
-            speed=int(hlt.constants.MAX_SPEED/2),
+            speed=int(hlt.constants.MAX_SPEED / 2),
             ignore_ships=False)
         logging.info("Precision Navigation lasted : %s ms", current_milli_time() - start_time_measure)
     else:
@@ -93,23 +118,23 @@ def decide_navigation(ship, game_map, avoid_ship=False, correction=10):
                 game_map,
                 angular_step=20,
                 max_corrections=18,
-                speed=int(hlt.constants.MAX_SPEED/2),
+                speed=int(hlt.constants.MAX_SPEED / 2),
                 ignore_ships=avoid_ship)
             logging.info("Advanced Navigation lasted : %s ms", current_milli_time() - start_time_measure_special)
-        # if not navigate_command:
-        #     # logging.info("I went in deep None")
-        #     navigate_command = ship.navigate(
-        #         ship.closest_point_to(ship.target_planet),
-        #         game_map,
-        #         max_corrections=360,
-        #         speed=int(hlt.constants.MAX_SPEED / 2),
-        #         ignore_ships=True)
+            # if not navigate_command:
+            #     # logging.info("I went in deep None")
+            #     navigate_command = ship.navigate(
+            #         ship.closest_point_to(ship.target_planet),
+            #         game_map,
+            #         max_corrections=360,
+            #         speed=int(hlt.constants.MAX_SPEED / 2),
+            #         ignore_ships=True)
     logging.info("Navigation lasted : %s ms", current_milli_time() - start_time_measure)
     if navigate_command:
         return navigate_command
 
 
-def attack(ship, game_map,):
+def attack(ship, game_map, ):
     start_time_measure = current_milli_time()
     # If we can dock, let's (try to) dock. If two ships try to dock at once, neither will be able to.
     if ship.can_suicide(ship.target_planet):
@@ -168,7 +193,7 @@ def attack(ship, game_map,):
 
 
 # We use this navigation tool to attack a other ship (suicide on him)
-def attack_ship(ship, game_map,):
+def attack_ship(ship, game_map, ):
     start_time_measure = current_milli_time()
     # If we can dock, let's (try to) dock. If two ships try to dock at once, neither will be able to.
     # logging.info("The targeted ship is : %s", ship.target_ship)
@@ -225,3 +250,66 @@ def attack_ship(ship, game_map,):
     logging.info("Ship Attack lasted : %s ms", current_milli_time() - start_time_measure)
     if navigate_command:
         return navigate_command
+
+
+def select_target_3(ship, game_map):
+    """
+    :param ship: the ship that need a target
+    :param game_map: the state of the map this turn
+    :type ship: the updated value of the ship with the target
+    """
+
+    # logging.info("Select target for ship :%s", ship.id)
+    shortest_distance = 3000
+    to_destroy = 0
+
+    # We check if the ship already has a target
+    if ship.id in common.game.ship_planet_target:
+        if common.game.ship_planet_target[ship.id].free_dock() > common.game.ship_planet_target[ship.id].targeted:
+            ship.target_planet = common.game.ship_planet_target[ship.id]
+            ship.target_planet.targeted += 1
+            return ship
+    if ship.id in common.game.ship_ship_target:
+        if common.game.ship_ship_target[ship.id] in common.enemy_ship:
+            ship.target_ship = common.game.ship_ship_target[ship.id]
+            return ship
+
+    # For each planet in the common.game (only non-destroyed planets are included)
+    for planet in game_map.all_planets():
+        # If the planet is owned
+        if planet.is_owned():
+            # logging.info("The planet n°%s is owned by : %s , I am : %s", planet.id, planet.owner.id,
+            #              game_map.get_me().id)
+            if planet.owner.id != game_map.get_me().id:
+                to_destroy = planet
+                # logging.info("Planet to attack : %s", to_destroy)
+                continue
+        if planet.targeted >= planet.free_dock():
+            # skip this planet
+            continue
+        dist = ship.calculate_distance_between(planet)
+        if shortest_distance >= dist:
+            shortest_distance = dist
+            ship.target_planet = planet
+            common.game.ship_planet_target[ship.id] = ship.target_planet
+            # ship.target_planet = game_map.get_planet(1)
+            # logging.info("Ship = %s Distance : %s Planete = %s", ship.id, dist, planet.id)
+
+    if not ship.target_planet:
+        # Attack an enemy planet
+        if to_destroy:
+            ship.target_planet = to_destroy
+            ship.attack = "planet"
+            # logging.info("Attack target planet: %s", ship.target_planet)
+            return ship
+        # If there is no more Planet start to attack other ship
+        else:
+            ship.target_ship = random.choice(common.enemy_ship)[0]
+            # logging.info("Attack target ship: %s", ship.target_ship)
+            common.game.ship_ship_target[ship.id] = ship.target_ship
+            ship.attack = "ship"
+            return ship
+
+    ship.target_planet.targeted += 1
+    return ship
+
