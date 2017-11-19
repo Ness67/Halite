@@ -23,12 +23,12 @@ from function import utils
 current_milli_time = lambda: int(round(time.time() * 1000))
 
 # define
-TIMEOUT_PROTECTION = 1900
+TIMEOUT_PROTECTION = 1600
 # define
 
 # GAME START
 # Here we define the bot's name as Settler and initialize the game, including communication with the Halite engine.
-game = hlt.Game("ColoNessV4")
+game = hlt.Game("ColoNessV7")
 # Then we print our start message to the logs
 # logging.info("Starting my ColoNess bot!")
 # Initializing Turn counter
@@ -123,30 +123,6 @@ while nb_ship_docked < 3:
 
 # EARLY GAME END
 
-# while nb_ship_docked < 12:
-#     nb_turn += 1
-#     game_map = game.update_map()
-#     command_queue = []
-#     nb_ship_docked = 0
-#
-#     logging.info("Mid Game Turn n° %d",nb_turn)
-#
-#     for ship in game_map.get_me().all_ships():
-#         # If the ship is docked
-#         if ship.docking_status != ship.DockingStatus.UNDOCKED:
-#             # Skip this ship
-#             nb_ship_docked += 1
-#             continue
-#
-#         ship = utils.select_target_bis(ship, game_map)
-#         navigate_command = utils.decide_navigation(ship, game_map, 180)
-#         logging.info("Navigation Command = %s", navigate_command)
-#         command_queue.append(navigate_command)
-#     # Send our set of commands to the Halite engine for this turn
-#     game.send_command_queue(command_queue)
-#     # TURN END
-
-# Mid GAME END
 
 while True:
     # TURN START
@@ -175,12 +151,15 @@ while True:
         # If the ship is docked
         if current_milli_time()-start_time >= TIMEOUT_PROTECTION:
             # if time is running out send command
+            logging.info("turn lasted : %s ms : Going to break", current_milli_time() - start_time)
             break
         if ship.docking_status != ship.DockingStatus.UNDOCKED:
             # Skip this ship
             # logging.info("Docked")
             continue
+        start_time_select = current_milli_time()
         ship = select_target_3(ship, game_map)
+        logging.info("Select target lasted : %s ms", current_milli_time() - start_time_select)
         if not ship.attack:
             navigate_command = utils.decide_navigation(ship, game_map, True)
             # logging.info("Navigation Command = %s", navigate_command)
@@ -190,9 +169,11 @@ while True:
         elif ship.attack == "ship":
             navigate_command = utils.attack_ship(ship, game_map)
             # logging.info("Attack Command = %s", navigate_command)
+
         if navigate_command:
             command_queue.append(navigate_command)
 
+    logging.info("turn lasted : %s ms", current_milli_time()-start_time)
     # Send our set of commands to the Halite engine for this turn
     game.send_command_queue(command_queue)
     # TURN END

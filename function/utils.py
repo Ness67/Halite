@@ -1,5 +1,7 @@
 import hlt
 import logging
+import time
+current_milli_time = lambda: int(round(time.time() * 1000))
 
 
 # Take a ship and find the closest planet
@@ -47,7 +49,8 @@ def select_target_bis(ship, game_map):
     return ship
 
 
-def decide_navigation(ship, game_map, avoid_ship=False, correction=90):
+def decide_navigation(ship, game_map, avoid_ship=False, correction=10):
+    start_time_measure = current_milli_time()
     # If we can dock, let's (try to) dock. If two ships try to dock at once, neither will be able to.
     if ship.can_dock(ship.target_planet):
         # We add the command by appending it to the command_queue
@@ -56,9 +59,11 @@ def decide_navigation(ship, game_map, avoid_ship=False, correction=90):
         navigate_command = ship.navigate(
             ship.closest_point_to(ship.target_planet),
             game_map,
-            max_corrections=360,
-            speed=int(hlt.constants.MAX_SPEED/3),
+            max_corrections=200,
+            angular_step=5,
+            speed=int(hlt.constants.MAX_SPEED/2),
             ignore_ships=False)
+        logging.info("Precision Navigation lasted : %s ms", current_milli_time() - start_time_measure)
     else:
         # If we can't dock, we move towards the closest empty point near this ship.target_planet (by using closest_point_to)
         # with constant speed. Don't worry about pathfinding for now, as the command will do it for you.
@@ -71,34 +76,41 @@ def decide_navigation(ship, game_map, avoid_ship=False, correction=90):
         navigate_command = ship.navigate(
             ship.closest_point_to(ship.target_planet),
             game_map,
+            angular_step=5,
             max_corrections=correction,
             speed=int(hlt.constants.MAX_SPEED),
             ignore_ships=avoid_ship)
+        # logging.info("Normal Navigation lasted : %s ms", current_milli_time() - start_time_measure)
         # If the move is possible, add it to the command_queue (if there are too many obstacles on the way
         # or we are trapped (or we reached our destination!), navigate_command will return null;
         # don't fret though, we can run the command again the next turn)
         # logging.info("Normal navigation command : %s",navigate_command)
         if not navigate_command:
+            start_time_measure_special = current_milli_time()
             # logging.info("I went in None")
-            navigate_command = ship.navigate(
-            ship.closest_point_to(ship.target_planet),
-            game_map,
-            max_corrections=360,
-            speed=int(hlt.constants.MAX_SPEED/2),
-            ignore_ships=avoid_ship)
-        if not navigate_command:
-            # logging.info("I went in deep None")
             navigate_command = ship.navigate(
                 ship.closest_point_to(ship.target_planet),
                 game_map,
-                max_corrections=360,
-                speed=int(hlt.constants.MAX_SPEED / 2),
-                ignore_ships=True)
+                angular_step=20,
+                max_corrections=18,
+                speed=int(hlt.constants.MAX_SPEED/2),
+                ignore_ships=avoid_ship)
+            logging.info("Advanced Navigation lasted : %s ms", current_milli_time() - start_time_measure_special)
+        # if not navigate_command:
+        #     # logging.info("I went in deep None")
+        #     navigate_command = ship.navigate(
+        #         ship.closest_point_to(ship.target_planet),
+        #         game_map,
+        #         max_corrections=360,
+        #         speed=int(hlt.constants.MAX_SPEED / 2),
+        #         ignore_ships=True)
+    logging.info("Navigation lasted : %s ms", current_milli_time() - start_time_measure)
     if navigate_command:
         return navigate_command
 
 
 def attack(ship, game_map,):
+    start_time_measure = current_milli_time()
     # If we can dock, let's (try to) dock. If two ships try to dock at once, neither will be able to.
     if ship.can_suicide(ship.target_planet):
         # We add the command by appending it to the command_queue
@@ -106,6 +118,7 @@ def attack(ship, game_map,):
             ship.target_planet,
             game_map,
             speed=int(hlt.constants.MAX_SPEED),
+            max_corrections=5,
             avoid_obstacles=False,
             ignore_ships=True,
             ignore_planets=True)
@@ -121,35 +134,42 @@ def attack(ship, game_map,):
         navigate_command = ship.navigate(
             ship.closest_point_to(ship.target_planet),
             game_map,
-            max_corrections=90,
+            angular_step=5,
+            max_corrections=10,
             speed=int(hlt.constants.MAX_SPEED),
             ignore_ships=False)
+        logging.info("Normal Planet Attack lasted : %s ms", current_milli_time() - start_time_measure)
         # If the move is possible, add it to the command_queue (if there are too many obstacles on the way
         # or we are trapped (or we reached our destination!), navigate_command will return null;
         # don't fret though, we can run the command again the next turn)
     # logging.info("Normal navigation command : %s",navigate_command)
     if not navigate_command:
+        start_time_measure_special = current_milli_time()
         # logging.info("I went in None")
-        navigate_command = ship.navigate(
-        ship.closest_point_to(ship.target_planet),
-        game_map,
-        max_corrections=360,
-        speed=int(hlt.constants.MAX_SPEED),
-        ignore_ships=False)
-    if not navigate_command:
-        # logging.info("I went in deep None")
         navigate_command = ship.navigate(
             ship.closest_point_to(ship.target_planet),
             game_map,
-            max_corrections=360,
-            speed=int(hlt.constants.MAX_SPEED / 2),
-            ignore_ships=True)
+            max_corrections=18,
+            angular_step=20,
+            speed=int(hlt.constants.MAX_SPEED),
+            ignore_ships=False)
+        logging.info("Special Planet Attack lasted : %s ms", current_milli_time() - start_time_measure_special)
+    # if not navigate_command:
+    #     # logging.info("I went in deep None")
+    #     navigate_command = ship.navigate(
+    #         ship.closest_point_to(ship.target_planet),
+    #         game_map,
+    #         max_corrections=360,
+    #         speed=int(hlt.constants.MAX_SPEED / 2),
+    #         ignore_ships=True)
+    logging.info("Planet Attack lasted : %s ms", current_milli_time() - start_time_measure)
     if navigate_command:
         return navigate_command
 
 
 # We use this navigation tool to attack a other ship (suicide on him)
 def attack_ship(ship, game_map,):
+    start_time_measure = current_milli_time()
     # If we can dock, let's (try to) dock. If two ships try to dock at once, neither will be able to.
     # logging.info("The targeted ship is : %s", ship.target_ship)
     if ship.can_kill(ship.target_ship):
@@ -157,6 +177,7 @@ def attack_ship(ship, game_map,):
         navigate_command = ship.navigate(
             ship.target_ship,
             game_map,
+            max_corrections=10,
             speed=int(hlt.constants.MAX_SPEED),
             avoid_obstacles=False,
             ignore_ships=True,
@@ -173,28 +194,34 @@ def attack_ship(ship, game_map,):
         navigate_command = ship.navigate(
             ship.closest_point_to(ship.target_ship),
             game_map,
-            max_corrections=90,
+            angular_step=5,
+            max_corrections=10,
             speed=int(hlt.constants.MAX_SPEED),
             ignore_ships=False)
+        logging.info("Normal Ship Attack lasted : %s ms", current_milli_time() - start_time_measure)
         # If the move is possible, add it to the command_queue (if there are too many obstacles on the way
         # or we are trapped (or we reached our destination!), navigate_command will return null;
         # don't fret though, we can run the command again the next turn)
     # logging.info("Normal navigation command : %s",navigate_command)
     if not navigate_command:
+        start_time_measure_special = current_milli_time()
         # logging.info("I went in None")
-        navigate_command = ship.navigate(
-        ship.closest_point_to(ship.target_ship),
-        game_map,
-        max_corrections=360,
-        speed=int(hlt.constants.MAX_SPEED),
-        ignore_ships=False)
-    if not navigate_command:
-        # logging.info("I went in deep None")
         navigate_command = ship.navigate(
             ship.closest_point_to(ship.target_ship),
             game_map,
-            max_corrections=360,
-            speed=int(hlt.constants.MAX_SPEED / 2),
-            ignore_ships=True)
+            max_corrections=18,
+            angular_step=20,
+            speed=int(hlt.constants.MAX_SPEED),
+            ignore_ships=False)
+        logging.info("Special Ship Attack lasted : %s ms", current_milli_time() - start_time_measure_special)
+    # if not navigate_command:
+    #     # logging.info("I went in deep None")
+    #     navigate_command = ship.navigate(
+    #         ship.closest_point_to(ship.target_ship),
+    #         game_map,
+    #         max_corrections=360,
+    #         speed=int(hlt.constants.MAX_SPEED / 2),
+    #         ignore_ships=True)
+    logging.info("Ship Attack lasted : %s ms", current_milli_time() - start_time_measure)
     if navigate_command:
         return navigate_command
