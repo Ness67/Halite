@@ -9,10 +9,14 @@ current_milli_time = lambda: int(round(time.time() * 1000))
 
 
 def turn_init():
+    common.enemy_ship = []
+    common.enemy_planets = []
+    common.my_planets = []
     # List all enemy ship
     for player in common.game_map.all_players():
         if player != common.game_map.get_me():
-            common.enemy_ship.append(player.all_ships())
+            for ship in player.all_ships():
+                common.enemy_ship.append(ship)
     neutral_planets = []
     # list of planets
     for planet in common.game_map.all_planets():
@@ -26,6 +30,15 @@ def turn_init():
     # Rest the target counter for the planet
     for planet in common.game_map.all_planets():
         planet.targeted = 0
+    n = 0
+    x = 0
+    y = 0
+    for planet in common.my_planets:
+        n =+1
+        x =+ planet.x
+        y =+ planet.y
+    common.barycenter.x=x/n
+    common.barycenter.y=y/n
 
 
 # Take a ship and find the closest planet
@@ -50,28 +63,28 @@ def select_target(ship, game_map):
     return ship
 
 
-def select_target_bis(ship, game_map):
-    shortest_distance = 30000
-    # For each planet in the game (only non-destroyed planets are included)
-    for planet in game_map.all_planets():
-        # If the planet is owned
-        if planet.is_owned():
-            if planet.owner.id != game_map.get_me().id:
-                continue
-        if planet.targeted >= planet.num_docking_spots:
-            # skip this planet
-            continue
-        dist = ship.calculate_distance_between(planet)
-        if shortest_distance >= dist:
-            shortest_distance = dist
-            ship.target_planet = planet
-            # ship.target_planet = game_map.get_planet(1)
-            # logging.info("Ship = %s Distance : %s Planete = %s", ship.id, dist, planet.id)
-    if not ship.target_planet:
-        ship.target_planet = game_map.get_planet(1)
-    # logging.info("Ship = %s Choosen Planete = %s", ship.id, ship.target_planet.id)
-    ship.target_planet.targeted += 1
-    return ship
+# def select_target_bis(ship, game_map):
+#     shortest_distance = 30000
+#     # For each planet in the game (only non-destroyed planets are included)
+#     for planet in game_map.all_planets():
+#         # If the planet is owned
+#         if planet.is_owned():
+#             if planet.owner.id != game_map.get_me().id:
+#                 continue
+#         if planet.targeted >= planet.num_docking_spots:
+#             # skip this planet
+#             continue
+#         dist = ship.calculate_distance_between(planet)
+#         if shortest_distance >= dist:
+#             shortest_distance = dist
+#             ship.target_planet = planet
+#             # ship.target_planet = game_map.get_planet(1)
+#             # logging.info("Ship = %s Distance : %s Planete = %s", ship.id, dist, planet.id)
+#     if not ship.target_planet:
+#         ship.target_planet = game_map.get_planet(1)
+#     # logging.info("Ship = %s Choosen Planete = %s", ship.id, ship.target_planet.id)
+#     ship.target_planet.targeted += 1
+#     return ship
 
 
 def decide_navigation(ship, game_map, avoid_ship=False, correction=10):
@@ -261,7 +274,7 @@ def select_target_3(ship, game_map):
 
     # logging.info("Select target for ship :%s", ship.id)
     shortest_distance = 3000
-    to_destroy = 0
+    destroy_planet = False
 
     # We check if the ship already has a target
     if ship.id in common.game.ship_planet_target:
@@ -281,11 +294,11 @@ def select_target_3(ship, game_map):
             # logging.info("The planet n°%s is owned by : %s , I am : %s", planet.id, planet.owner.id,
             #              game_map.get_me().id)
             if planet.owner.id != game_map.get_me().id:
-                to_destroy = planet
-                # logging.info("Planet to attack : %s", to_destroy)
+                # If it's a enemy planet continue
+                destroy_planet=True
                 continue
         if planet.targeted >= planet.free_dock():
-            # skip this planet
+            # if the planet is full or if there is too much ship going skip this planet
             continue
         dist = ship.calculate_distance_between(planet)
         if shortest_distance >= dist:
@@ -297,14 +310,16 @@ def select_target_3(ship, game_map):
 
     if not ship.target_planet:
         # Attack an enemy planet
-        if to_destroy:
-            ship.target_planet = to_destroy
+        if destroy_planet:
+            ship.target_planet = choose_enemy_planet()
             ship.attack = "planet"
             # logging.info("Attack target planet: %s", ship.target_planet)
             return ship
         # If there is no more Planet start to attack other ship
         else:
-            ship.target_ship = random.choice(common.enemy_ship)[0]
+            logging.info("The first ship is : %s", common.enemy_ship[0])
+            logging.info("The table is : %s, the list is %d long", common.enemy_ship, len(common.enemy_ship))
+            ship.target_ship = common.enemy_ship[random.randint(0,len(common.enemy_ship)-1)]
             # logging.info("Attack target ship: %s", ship.target_ship)
             common.game.ship_ship_target[ship.id] = ship.target_ship
             ship.attack = "ship"
@@ -312,4 +327,16 @@ def select_target_3(ship, game_map):
 
     ship.target_planet.targeted += 1
     return ship
+
+
+def choose_enemy_planet():
+    closest_distance = 3000
+    if not common.enemy_planets:
+        return
+    for planet in common.enemy_planets:
+        dist = planet.calculate_distance_between(common.barycenter)
+        if dist < closest_distance:
+            closest_distance = dist
+            closest_enemy_planet = planet
+    return closest_enemy_planet
 

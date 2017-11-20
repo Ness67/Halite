@@ -1,4 +1,7 @@
 import time
+from hlt import entity
+import math
+from function import myclass
 
 #definition of the method to measure time
 current_milli_time = lambda: int(round(time.time() * 1000))
@@ -14,3 +17,7 @@ game = 0
 enemy_ship = []
 enemy_planets = []
 my_planets = []
+# The barycenter of my planet
+barycenter = entity.Position(0,0)
+
+
