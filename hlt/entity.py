@@ -249,10 +249,8 @@ class Ship(Entity):
         self.planet = planet if (docking_status is not Ship.DockingStatus.UNDOCKED) else None
         self._docking_progress = progress
         self._weapon_cooldown = cooldown
-        
-        self.target_planet = 0
-        self.target_ship = 0
-        self.attack = 0
+        self.target = 0
+        self.action = 0
 
     def thrust(self, magnitude, angle):
         """
