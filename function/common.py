@@ -19,5 +19,7 @@ enemy_planets = []
 my_planets = []
 # The barycenter of my planet
 barycenter = entity.Position(0,0)
-
-
+# Here we define the set of commands to be sent to the Halite engine at the end of the turn
+command_queue = []
+# A time variable that we use to check the time elapse in the turn
+start_time = 0

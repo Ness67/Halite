@@ -9,9 +9,14 @@ current_milli_time = lambda: int(round(time.time() * 1000))
 
 
 def turn_init():
+
+    # Initializing the turn variable
     common.enemy_ship = []
     common.enemy_planets = []
     common.my_planets = []
+    # Here we define the set of commands to be sent to the Halite engine at the end of the turn
+    common.command_queue = []
+
     # List all enemy ship
     for player in common.game_map.all_players():
         if player != common.game_map.get_me():
@@ -35,11 +40,11 @@ def turn_init():
         x = 0
         y = 0
         for planet in common.my_planets:
-            n =+1
-            x =+ planet.x
-            y =+ planet.y
-        common.barycenter.x=x/n
-        common.barycenter.y=y/n
+            n = +1
+            x = +planet.x
+            y = +planet.y
+        common.barycenter.x = x/n
+        common.barycenter.y = y/n
 
 
 # Take a ship and find the closest planet
@@ -79,16 +84,22 @@ def select_target_3(ship, game_map):
     # logging.info("Select target for ship :%s", ship.id)
     shortest_distance = 3000
     destroy_planet = False
-
+    logging.info("Start targeting for ship %d",ship.id)
     # We check if the ship already has a target
     if ship.id in common.game.ship_planet_target:
+        # logging.info("ship %d had already a planet target : %d", ship.id, common.game.ship_planet_target[ship.id].id)
         if common.game.ship_planet_target[ship.id].free_dock() > common.game.ship_planet_target[ship.id].targeted:
             ship.target = common.game.ship_planet_target[ship.id]
             ship.target.targeted += 1
+            ship.action = "colonise"
+            # logging.info("Keep this target")
             return ship
     if ship.id in common.game.ship_ship_target:
+        logging.info("ship %d had already a ship target : %d", ship.id, common.game.ship_ship_target[ship.id].id)
         if common.game.ship_ship_target[ship.id] in common.enemy_ship:
             ship.target = common.game.ship_ship_target[ship.id]
+            ship.action = "ship"
+            # logging.info("Keep this target")
             return ship
 
     # For each planet in the common.game (only non-destroyed planets are included)
@@ -99,7 +110,7 @@ def select_target_3(ship, game_map):
             #              game_map.get_me().id)
             if planet.owner.id != game_map.get_me().id:
                 # If it's a enemy planet continue
-                destroy_planet=True
+                destroy_planet = True
                 continue
         if planet.targeted >= planet.free_dock():
             # if the planet is full or if there is too much ship going skip this planet
@@ -122,7 +133,6 @@ def select_target_3(ship, game_map):
             return ship
         # If there is no more Planet start to attack other ship
         else:
-            logging.info("The table is : %s, the list is %d long", common.enemy_ship, len(common.enemy_ship))
             ship.target = random.choice(common.enemy_ship)
             logging.info("The targeted ship is : %s", ship.target)
             common.game.ship_ship_target[ship.id] = ship.target
@@ -133,7 +143,7 @@ def select_target_3(ship, game_map):
     return ship
 
 
-def normal_navigation(ship,avoid_ship=False, correction=10):
+def normal_navigation(ship, avoid_ship, correction=10, angular=5):
     # If we can't dock, we move towards the closest empty point near this ship.target (by using closest_point_to)
     # with constant speed. Don't worry about pathfinding for now, as the command will do it for you.
     # We run this navigate command each turn until we arrive to get the latest move.
@@ -145,10 +155,11 @@ def normal_navigation(ship,avoid_ship=False, correction=10):
     navigate_command = ship.navigate(
         ship.closest_point_to(ship.target),
         common.game_map,
-        angular_step=5,
+        angular_step=angular,
         max_corrections=correction,
         speed=int(hlt.constants.MAX_SPEED),
         ignore_ships=avoid_ship)
+    logging.info("Finished Normal navigation for ship %d with %s order", ship.id, navigate_command)
     # logging.info("Normal Navigation lasted : %s ms", current_milli_time() - start_time_measure)
     # If the move is possible, add it to the command_queue (if there are too many obstacles on the way
     # or we are trapped (or we reached our destination!), navigate_command will return null;
@@ -162,14 +173,16 @@ def normal_navigation(ship,avoid_ship=False, correction=10):
             common.game_map,
             angular_step=20,
             max_corrections=18,
-            speed=int(hlt.constants.MAX_SPEED / 2),
+            speed=int(hlt.constants.MAX_SPEED),
             ignore_ships=avoid_ship)
-        logging.info("Advanced Navigation lasted : %s ms", current_milli_time() - start_time_measure_special)
+        logging.info("Finished Advanced navigation for ship %d with %s order", ship.id, navigate_command)
+        # logging.info("Advanced Navigation lasted : %s ms", current_milli_time() - start_time_measure_special)
     if navigate_command:
         return navigate_command
 
 
-def decide_navigation(ship, avoid_ship=False, correction=10):
+def decide_navigation(ship, avoid_ship=False, correction=10, angular=5):
+    logging.info("Enter Navigation for ship : %d, ship action is : %s", ship.id, ship.action)
     navigate_command = 0
     start_time_measure = current_milli_time()
     # If we can dock, let's (try to) dock. If two ships try to dock at once, neither will be able to.
@@ -181,13 +194,14 @@ def decide_navigation(ship, avoid_ship=False, correction=10):
             navigate_command = ship.navigate(
                 ship.closest_point_to(ship.target),
                 common.game_map,
-                max_corrections=200,
-                angular_step=5,
+                max_corrections=180,
+                angular_step=2,
                 speed=int(hlt.constants.MAX_SPEED / 2),
                 ignore_ships=False)
+            logging.info("Finished Precision navigation for ship %d with %s order", ship.id, navigate_command)
             logging.info("Precision Navigation lasted : %s ms", current_milli_time() - start_time_measure)
         else:
-            navigate_command = normal_navigation(ship, avoid_ship, correction)
+            navigate_command = normal_navigation(ship, avoid_ship, correction, angular)
     
     # If the flag "planet" is raise we attack the planet
     elif ship.action == "planet":
@@ -201,8 +215,9 @@ def decide_navigation(ship, avoid_ship=False, correction=10):
                 avoid_obstacles=False,
                 ignore_ships=True,
                 ignore_planets=True)
+            logging.info("Finished Attack planet procedure for ship %d with %s order", ship.id, navigate_command)
         else:
-            navigate_command = normal_navigation(ship, avoid_ship, correction)
+            navigate_command = normal_navigation(ship, avoid_ship, correction, angular)
     
     # If the flag ship is raise we attack a ship
     elif ship.action == "ship":
@@ -216,8 +231,9 @@ def decide_navigation(ship, avoid_ship=False, correction=10):
                 avoid_obstacles=False,
                 ignore_ships=True,
                 ignore_planets=True)
+            logging.info("Finished Attack ship procedure for ship %d with %s order", ship.id, navigate_command)
         else:
-            navigate_command = normal_navigation(ship, avoid_ship, correction)
+            navigate_command = normal_navigation(ship, avoid_ship, correction, angular)
 
     if navigate_command:
         return navigate_command
@@ -234,3 +250,24 @@ def choose_enemy_planet():
             closest_enemy_planet = planet
     return closest_enemy_planet
 
+
+def strategy_end_game():
+    # For every ship that I control
+    for ship in common.game_map.get_me().all_ships():
+        # logging.info("Start Working on ship : %s", ship)
+        if common.current_milli_time()-common.start_time >= common.TIMEOUT_PROTECTION:
+            # if time is running out send command
+            logging.info("turn %d lasted : %s ms : Going to break", common.nb_turn, common.current_milli_time() - common.start_time)
+            break
+        # If the ship is dockedgit
+        if ship.docking_status != ship.DockingStatus.UNDOCKED:
+            # Skip this ship
+            # logging.info("Ship %d Docked", ship.id)
+            continue
+        ship = select_target_3(ship, common.game_map)
+        # logging.info("Select target lasted : %s ms", common.current_milli_time() - start_time_select)
+        navigate_command = decide_navigation(ship)
+
+        logging.info("Ship %d has %s move Command", ship.id, navigate_command)
+        if navigate_command:
+            common.command_queue.append(navigate_command)
