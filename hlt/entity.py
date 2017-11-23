@@ -335,7 +335,7 @@ class Ship(Entity):
 
     def near_planet(self, planet):
         """
-        Determine whether a ship can dock to a planet
+        Determine whether a ship is near a planet
 
         :param Planet planet: The planet wherein you wish to dock
         :return: True if can dock, False otherwise

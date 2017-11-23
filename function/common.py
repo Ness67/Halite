@@ -1,5 +1,5 @@
 import time
-from hlt import entity
+from hlt import *
 import math
 from function import myclass
 
@@ -17,6 +17,7 @@ game = 0
 enemy_ship = []
 enemy_planets = []
 my_planets = []
+neutral_planets = []
 my_ships = []
 # The barycenter of my planet
 barycenter = entity.Position(0,0)

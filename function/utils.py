@@ -1,19 +1,29 @@
 import hlt
 import logging
 import time
-from hlt import *
+from hlt import entity
 import random
 from function import common
+from enum import Enum
+
+
+class Genre(Enum):
+    allPlanet = 1
+    myPlanet = 2
+    enemyPlanet = 3
+    neutralPlanet = 4
+    enemyShip = 5
+
 
 current_milli_time = lambda: int(round(time.time() * 1000))
 
 
 def turn_init():
-
     # Initializing the turn variable
     common.enemy_ship = []
     common.enemy_planets = []
     common.my_planets = []
+    common.neutral_planets = []
     # Here we define the set of commands to be sent to the Halite engine at the end of the turn
     common.command_queue = []
 
@@ -21,7 +31,6 @@ def turn_init():
     for player in common.game_map.all_players():
         if player != common.game_map.get_me():
             common.enemy_ship.extend(player.all_ships())
-    neutral_planets = []
     # list of planets
     for planet in common.game_map.all_planets():
         if planet.is_owned():
@@ -30,7 +39,7 @@ def turn_init():
             else:
                 common.enemy_planets.append(planet)
         else:
-            neutral_planets.append(planet)
+            common.neutral_planets.append(planet)
     # Rest the target counter for the planet
     for planet in common.game_map.all_planets():
         planet.targeted = 0
@@ -42,8 +51,8 @@ def turn_init():
             n = +1
             x = +ship.x
             y = +ship.y
-        common.barycenter.x = x/n
-        common.barycenter.y = y/n
+        common.barycenter.x = x / n
+        common.barycenter.y = y / n
 
 
 def select_target_3(ship: entity.Ship, max_ship_planet: int = 100, distance_to_look: int = 3000) -> entity.Ship:
@@ -56,8 +65,7 @@ def select_target_3(ship: entity.Ship, max_ship_planet: int = 100, distance_to_l
     """
 
     # logging.info("Select target for ship :%s", ship.id)
-    attack_the_planet = False
-    logging.info("Start targeting for ship %d",ship.id)
+    logging.info("Start targeting for ship %d", ship.id)
     # We check if the ship already has a target
     if ship.id in common.game.ship_planet_target:
         # logging.info("ship %d had already a planet target : %d", ship.id, common.game.ship_planet_target[ship.id].id)
@@ -76,15 +84,7 @@ def select_target_3(ship: entity.Ship, max_ship_planet: int = 100, distance_to_l
             return ship
 
     # For each planet in the common.game (only non-destroyed planets are included)
-    for planet in common.game_map.all_planets():
-        # If the planet is owned
-        if planet.is_owned():
-            # logging.info("The planet n°%s is owned by : %s , I am : %s", planet.id, planet.owner.id,
-            #              game_map.get_me().id)
-            if planet.owner.id != common.game_map.get_me().id:
-                # If it's a enemy planet continue
-                attack_the_planet = True
-                continue
+    for planet in common.neutral_planets + common.my_planets:
         if planet.targeted >= planet.free_dock() or planet.targeted >= max_ship_planet:
             # if the planet is full or if there is too much ship going skip this planet
             continue
@@ -99,8 +99,8 @@ def select_target_3(ship: entity.Ship, max_ship_planet: int = 100, distance_to_l
 
     if ship.action != "colonise":
         # Attack an enemy planet
-        if attack_the_planet:
-            invaded_planet = choose_enemy_planet()
+        if common.enemy_planets:
+            invaded_planet = nearest_target(ship, Genre.enemyPlanet)
             ship.target = random.choice(invaded_planet.all_docked_ships())
             common.game.ship_ship_target[ship.id] = ship.target
             ship.action = "ship"
@@ -141,7 +141,7 @@ def normal_navigation(ship, avoid_ship, correction=10, angular=5):
     # don't fret though, we can run the command again the next turn)
     # logging.info("Normal navigation command : %s",navigate_command)
     if not navigate_command:
-        start_time_measure_special = current_milli_time()
+        # start_time_measure_special = current_milli_time()
         # logging.info("I went in None")
         navigate_command = ship.navigate(
             ship.closest_point_to(ship.target),
@@ -177,9 +177,9 @@ def decide_navigation(ship, avoid_ship=False, correction=10, angular=5):
             logging.info("Precision Navigation lasted : %s ms", current_milli_time() - start_time_measure)
         else:
             navigate_command = normal_navigation(ship, avoid_ship, correction, angular)
-    
+
     # If the flag "planet" is raise we attack the planet
-    elif ship.action == "planet":
+    elif ship.action == "destroy planet":
         if ship.can_suicide(ship.target):
             # We add the command by appending it to the command_queue
             navigate_command = ship.navigate(
@@ -190,10 +190,10 @@ def decide_navigation(ship, avoid_ship=False, correction=10, angular=5):
                 avoid_obstacles=False,
                 ignore_ships=True,
                 ignore_planets=True)
-            logging.info("Finished Attack planet procedure for ship %d with %s order", ship.id, navigate_command)
+            logging.info("Finished destroy planet procedure for ship %d with %s order", ship.id, navigate_command)
         else:
             navigate_command = normal_navigation(ship, avoid_ship, correction, angular)
-    
+
     # If the flag ship is raise we attack a ship
     elif ship.action == "ship":
         if ship.can_kill(ship.target):
@@ -214,26 +214,14 @@ def decide_navigation(ship, avoid_ship=False, correction=10, angular=5):
         return navigate_command
 
 
-def choose_enemy_planet() -> entity.Planet:
-    closest_distance = 3000
-    closest_enemy_planet = None
-    if not common.enemy_planets:
-        return closest_enemy_planet
-    for planet in common.enemy_planets:
-        dist = planet.calculate_distance_between(common.barycenter)
-        if dist < closest_distance:
-            closest_distance = dist
-            closest_enemy_planet = planet
-    return closest_enemy_planet
-
-
 def strategy_end_game():
     # For every ship that I control
     for ship in common.game_map.get_me().all_ships():
         # logging.info("Start Working on ship : %s", ship)
-        if common.current_milli_time()-common.start_time >= common.TIMEOUT_PROTECTION:
+        if common.current_milli_time() - common.start_time >= common.TIMEOUT_PROTECTION:
             # if time is running out send command
-            logging.info("turn %d lasted : %s ms : Going to break", common.nb_turn, common.current_milli_time() - common.start_time)
+            logging.info("turn %d lasted : %s ms : Going to break", common.nb_turn, common.current_milli_time()
+                         - common.start_time)
             break
         # If the ship is dockedgit
         if ship.docking_status != ship.DockingStatus.UNDOCKED:
@@ -253,19 +241,60 @@ def strategy_early_game():
     # For every ship that I control
     for ship in common.game_map.get_me().all_ships():
         # logging.info("Start Working on ship : %s", ship)
-        if common.current_milli_time()-common.start_time >= common.TIMEOUT_PROTECTION:
+        if common.current_milli_time() - common.start_time >= common.TIMEOUT_PROTECTION:
             # if time is running out send command
-            logging.info("turn %d lasted : %s ms : Going to break", common.nb_turn, common.current_milli_time() - common.start_time)
+            logging.info("turn %d lasted : %s ms : Going to break", common.nb_turn, common.current_milli_time()
+                         - common.start_time)
             break
         # If the ship is dockedgit
         if ship.docking_status != ship.DockingStatus.UNDOCKED:
             # Skip this ship
             # logging.info("Ship %d Docked", ship.id)
             continue
-        ship = select_target_3(ship,max_ship_planet=2)
+        ship = select_target_3(ship, max_ship_planet=2)
         # logging.info("Select target lasted : %s ms", common.current_milli_time() - start_time_select)
         navigate_command = decide_navigation(ship)
 
         logging.info("Ship %d has %s move Command", ship.id, navigate_command)
         if navigate_command:
             common.command_queue.append(navigate_command)
+
+
+def nearest_target(origin: entity.Entity, target_type: Genre = Genre.neutralPlanet) -> entity.Entity:
+    short_dist = 3000
+    closest = 0
+    if target_type == Genre.allPlanet:
+        for planet in common.game_map.all_planets():
+            dist = planet.calculate_distance_between(origin)
+            if dist < short_dist:
+                short_dist = dist
+                closest = planet
+        return closest
+    elif target_type == Genre.myPlanet and common.my_planets:
+        for planet in common.my_planets:
+            dist = planet.calculate_distance_between(origin)
+            if dist < short_dist:
+                short_dist = dist
+                closest = planet
+        return closest
+    elif target_type == Genre.enemyPlanet and common.enemy_planets:
+        for planet in common.enemy_planets:
+            dist = planet.calculate_distance_between(origin)
+            if dist < short_dist:
+                short_dist = dist
+                closest = planet
+        return closest
+    elif target_type == Genre.neutralPlanet and common.neutral_planets:
+        for planet in common.neutral_planets:
+            dist = planet.calculate_distance_between(origin)
+            if dist < short_dist:
+                short_dist = dist
+                closest = planet
+        return closest
+    elif target_type == Genre.enemyShip and common.enemy_ship:
+        for enemyShip in common.enemy_ship:
+            dist = enemyShip.calculate_distance_between(origin)
+            if dist < short_dist:
+                short_dist = dist
+                closest = enemyShip
+        return closest

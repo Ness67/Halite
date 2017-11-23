@@ -19,17 +19,13 @@ import hlt
 from function import common
 from function import utils
 
-
 # GAME START
 # Here we define the bot's name as Settler and initialize the game, including communication with the Halite engine.
-common.game = hlt.Game("ColoNessV9")
+common.game = hlt.Game("ColoNessV10")
 # Then we print our start message to the logs
 logging.info("Starting my ColoNess bot!")
 
 nb_ship_docked = 0
-
-# Start of the early game strategy
-
 
 while True:
     # TURN START
@@ -42,14 +38,14 @@ while True:
     utils.turn_init()
 
     if common.nb_turn <= 60:
+        # Start of the early game strategy
         utils.strategy_early_game()
     else:
+        # Start of the late game strategy
         utils.strategy_end_game()
 
     logging.info("turn %d lasted : %s ms", common.nb_turn, common.current_milli_time()-common.start_time)
     # Send our set of commands to the Halite engine for this turn
     common.game.send_command_queue(common.command_queue)
     # TURN END
-
-
 # GAME END
