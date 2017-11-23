@@ -67,7 +67,10 @@ while True:
     # Init of the things that will be use this turn
     utils.turn_init()
 
-    utils.strategy_end_game()
+    if common.nb_turn <= 30:
+        utils.strategy_early_game()
+    else:
+        utils.strategy_end_game()
 
     logging.info("turn %d lasted : %s ms", common.nb_turn, common.current_milli_time()-common.start_time)
     # Send our set of commands to the Halite engine for this turn

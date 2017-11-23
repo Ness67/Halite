@@ -17,6 +17,7 @@ game = 0
 enemy_ship = []
 enemy_planets = []
 my_planets = []
+my_ships = []
 # The barycenter of my planet
 barycenter = entity.Position(0,0)
 # Here we define the set of commands to be sent to the Halite engine at the end of the turn
