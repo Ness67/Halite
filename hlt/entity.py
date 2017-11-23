@@ -29,7 +29,7 @@ class Entity:
         self.owner = player
         self.id = entity_id
 
-    def calculate_distance_between(self, target: object) -> object:
+    def calculate_distance_between(self, target: object) -> float:
         """
         Calculates the distance between this object and the target.
 

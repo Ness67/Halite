@@ -29,32 +29,6 @@ logging.info("Starting my ColoNess bot!")
 nb_ship_docked = 0
 
 # Start of the early game strategy
-while 0:
-    common.nb_turn += 1
-    common.game_map = common.game.update_map()
-    command_queue = []
-    utils.turn_init()
-    nb_ship_docked = 0
-
-    # logging.info("Early Game Turn n° %d", nb_turn)
-
-    for ship in common.game_map.get_me().all_ships():
-        # If the ship is docked
-        if ship.docking_status != ship.DockingStatus.UNDOCKED:
-            # Skip this ship
-            nb_ship_docked += 1
-            continue
-
-        ship = utils.select_target(ship, common.game_map)
-        navigate_command = utils.decide_navigation(ship, common.game_map)
-        logging.info("Move Command = %s", navigate_command)
-        # logging.info("Navigation Command = %s", navigate_command)
-        command_queue.append(navigate_command)
-    # Send our set of commands to the Halite engine for this turn
-    common.game.send_command_queue(command_queue)
-    # TURN END
-
-# EARLY GAME END
 
 
 while True:
@@ -67,7 +41,7 @@ while True:
     # Init of the things that will be use this turn
     utils.turn_init()
 
-    if common.nb_turn <= 30:
+    if common.nb_turn <= 60:
         utils.strategy_early_game()
     else:
         utils.strategy_end_game()

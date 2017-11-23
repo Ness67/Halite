@@ -1,7 +1,7 @@
 import hlt
 import logging
 import time
-import hlt
+from hlt import *
 import random
 from function import common
 
@@ -46,45 +46,17 @@ def turn_init():
         common.barycenter.y = y/n
 
 
-# # Take a ship and find the closest planet
-# def select_target(ship, game_map):
-#     shortest_distance = 3000
-#     # For each planet in the game (only non-destroyed planets are included)
-#     for planet in game_map.all_planets():
-#         # If the planet is owned
-#         if planet.is_owned():
-#             # Skip this planet
-#             continue
-#         if planet.targeted != 0:
-#             # skip this planet
-#             continue
-#         dist = ship.calculate_distance_between(planet)
-#         if shortest_distance >= dist:
-#             shortest_distance = dist
-#             ship.target = planet
-#             ship.action = "colonise"
-#             # ship.target_planet = game_map.get_planet(1)
-#             # logging.info("Ship = %s Distance : %s Planete = %s", ship.id, dist, planet.id)
-#     if ship.target:
-#         ship.target.targeted += 1
-#     else:
-#         ship.target = random.choice(common.my_planets)
-#         ship.target.targeted += 1
-#     return ship
-
-
-def select_target_3(ship, game_map, max_ship_planet=100, distance_to_look=3000):
+def select_target_3(ship: entity.Ship, max_ship_planet: int = 100, distance_to_look: int = 3000) -> entity.Ship:
     """
     :param max_ship_planet: the max number of ship / planet
     :param distance_to_look:  the max distance to look for a planet to colonise
     :param ship: the ship that need a target
-    :param game_map: the state of the map this turn
     :type ship: the updated value of the ship with the target
     :return ship: the amended ship with a target and an action
     """
 
     # logging.info("Select target for ship :%s", ship.id)
-    destroy_planet = False
+    attack_the_planet = False
     logging.info("Start targeting for ship %d",ship.id)
     # We check if the ship already has a target
     if ship.id in common.game.ship_planet_target:
@@ -104,14 +76,14 @@ def select_target_3(ship, game_map, max_ship_planet=100, distance_to_look=3000):
             return ship
 
     # For each planet in the common.game (only non-destroyed planets are included)
-    for planet in game_map.all_planets():
+    for planet in common.game_map.all_planets():
         # If the planet is owned
         if planet.is_owned():
             # logging.info("The planet n°%s is owned by : %s , I am : %s", planet.id, planet.owner.id,
             #              game_map.get_me().id)
-            if planet.owner.id != game_map.get_me().id:
+            if planet.owner.id != common.game_map.get_me().id:
                 # If it's a enemy planet continue
-                destroy_planet = True
+                attack_the_planet = True
                 continue
         if planet.targeted >= planet.free_dock() or planet.targeted >= max_ship_planet:
             # if the planet is full or if there is too much ship going skip this planet
@@ -127,9 +99,11 @@ def select_target_3(ship, game_map, max_ship_planet=100, distance_to_look=3000):
 
     if ship.action != "colonise":
         # Attack an enemy planet
-        if destroy_planet:
-            ship.target = choose_enemy_planet()
-            ship.action = "planet"
+        if attack_the_planet:
+            invaded_planet = choose_enemy_planet()
+            ship.target = random.choice(invaded_planet.all_docked_ships())
+            common.game.ship_ship_target[ship.id] = ship.target
+            ship.action = "ship"
             # logging.info("Attack target planet: %s", ship.target)
             return ship
         # If there is no more Planet start to attack other ship
@@ -240,10 +214,11 @@ def decide_navigation(ship, avoid_ship=False, correction=10, angular=5):
         return navigate_command
 
 
-def choose_enemy_planet():
+def choose_enemy_planet() -> entity.Planet:
     closest_distance = 3000
+    closest_enemy_planet = None
     if not common.enemy_planets:
-        return
+        return closest_enemy_planet
     for planet in common.enemy_planets:
         dist = planet.calculate_distance_between(common.barycenter)
         if dist < closest_distance:
@@ -265,7 +240,7 @@ def strategy_end_game():
             # Skip this ship
             # logging.info("Ship %d Docked", ship.id)
             continue
-        ship = select_target_3(ship, common.game_map)
+        ship = select_target_3(ship)
         # logging.info("Select target lasted : %s ms", common.current_milli_time() - start_time_select)
         navigate_command = decide_navigation(ship)
 
@@ -287,7 +262,7 @@ def strategy_early_game():
             # Skip this ship
             # logging.info("Ship %d Docked", ship.id)
             continue
-        ship = select_target_3(ship, common.game_map,max_ship_planet=2)
+        ship = select_target_3(ship,max_ship_planet=2)
         # logging.info("Select target lasted : %s ms", common.current_milli_time() - start_time_select)
         navigate_command = decide_navigation(ship)
 

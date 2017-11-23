@@ -85,6 +85,7 @@ class Game:
         self._send_name = True
         self.ship_planet_target = dict()
         self.ship_ship_target = dict()
+        self.ship_planet_attack = dict()
 
     def update_map(self):
         """
