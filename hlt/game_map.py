@@ -52,7 +52,7 @@ class Map:
         """
         return self._planets.get(planet_id)
 
-    def all_planets(self):
+    def all_planets(self) -> list:
         """
         :return: List of all planets
         :rtype: list[entity.Planet]

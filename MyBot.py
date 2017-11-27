@@ -16,12 +16,11 @@ to log anything use the logging module.
 # Importing the logging module so we can print out information
 import logging
 import hlt
-from function import common
-from function import utils
+from function import myclass
 
 # GAME START
 # Here we define the bot's name as Settler and initialize the game, including communication with the Halite engine.
-common.game = hlt.Game("ColoNessV10")
+bot = myclass.Bot(hlt.Game("ColoNessV11"))
 # Then we print our start message to the logs
 logging.info("Starting my ColoNess bot!")
 
@@ -30,22 +29,22 @@ nb_ship_docked = 0
 while True:
     # TURN START
     # Update the map for the new turn and get the latest version
-    common.game_map = common.game.update_map()
-    common.start_time = common.current_milli_time()
-    common.nb_turn += 1
+    bot.map_update()
+    bot.start_time = bot.current_milli_time()
+    bot.nb_turn += 1
 
     # Init of the things that will be use this turn
-    utils.turn_init()
+    bot.turn_init()
 
-    if common.nb_turn <= 60:
+    if bot.nb_turn <= 60:
         # Start of the early game strategy
-        utils.strategy_early_game()
+        bot.strategy_early_game()
     else:
         # Start of the late game strategy
-        utils.strategy_end_game()
+        bot.strategy_end_game()
 
-    logging.info("turn %d lasted : %s ms", common.nb_turn, common.current_milli_time()-common.start_time)
+    logging.info("turn %d lasted : %s ms", bot.nb_turn, bot.current_milli_time()-bot.start_time)
     # Send our set of commands to the Halite engine for this turn
-    common.game.send_command_queue(common.command_queue)
+    bot.game.send_command_queue(bot.command_queue)
     # TURN END
 # GAME END

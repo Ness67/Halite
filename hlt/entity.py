@@ -251,6 +251,7 @@ class Ship(Entity):
         self._weapon_cooldown = cooldown
         self.target = 0
         self.action = 0
+        self.targeted = 0
 
     def thrust(self, magnitude, angle):
         """
@@ -357,11 +358,21 @@ class Ship(Entity):
         """
         Determine whether a ship is near enough to suicide on the planet
 
-        :param Planet planet: The planet wherein you wish to dock
+        :param Ship ship: The ship you are willing to crash into
         :return: True if in range to suicide, False otherwise
         :rtype: bool
         """
         return self.calculate_distance_between(ship) <= constants.NEAR_RADIUS
+
+    def attack_range(self, ship):
+        """
+        Determine whether a ship is near enough to suicide on the planet
+
+        :param Ship ship: The ship you are willing to attack
+        :return: True if in range to attack, False otherwise
+        :rtype: bool
+        """
+        return self.calculate_distance_between(ship) <= 5
 
     def _link(self, players, planets):
         """
