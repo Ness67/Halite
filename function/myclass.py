@@ -117,7 +117,7 @@ class Bot:
             logging.info("ship %d had already a ship target : %d", ship.id, self.game.ship_ship_target[ship.id].id)
             if self.game.ship_ship_target[ship.id] in self.enemy_ship:
                 ship.target = self.game.ship_ship_target[ship.id]
-                ship.action = "ship"
+                ship.action = "attack docked"
                 # logging.info("Keep this target")
                 return ship
 
@@ -139,9 +139,19 @@ class Bot:
             # Attack an enemy planet
             if self.enemy_planets:
                 invaded_planet = self.nearest_target_planet(ship, Genre.enemyPlanet)
-                ship.target = random.choice(invaded_planet.all_docked_ships())
-                self.game.ship_ship_target[ship.id] = ship.target
-                ship.action = "ship"
+                # Check if all the ship of the planet are already targeted
+                for bad_ship in invaded_planet.all_docked_ships():
+                    if not bad_ship.targeted:
+                        ship.target = bad_ship
+                        ship.target.targeted = +1
+                        self.game.ship_ship_target[ship.id] = ship.target
+                        ship.action = "attack docked"
+                        break
+                if ship.action != "attack docked":
+                    # All the of the planet ship are already targeted going to defend
+                    defend = self.nearest_target_planet(ship, Genre.myPlanet)
+                    ship.target = defend
+                    ship.action = "defend"
                 # logging.info("Attack target planet: %s", ship.target)
                 return ship
             # If there is no more Planet start to attack other ship
@@ -234,7 +244,21 @@ class Bot:
             if ship.can_suicide(ship.target):
                 # We add the command by appending it to the command_queue
                 navigate_command = ship.navigate(
-                    ship.closest_point_to(ship.target,min_distance=1),
+                    ship.closest_point_to(ship.target, min_distance=2),
+                    self.map_of_game,
+                    speed=int(hlt.constants.MAX_SPEED),
+                    max_corrections=15,
+                    ignore_ships=False,
+                    ignore_planets=False)
+                logging.info("Finished destroy planet procedure for ship %d with %s order", ship.id, navigate_command)
+            else:
+                navigate_command = self.normal_navigation(ship, avoid_ship, correction, angular)
+
+        elif ship.action == "defend":
+            if ship.can_suicide(ship.target):
+                # We add the command by appending it to the command_queue
+                navigate_command = ship.navigate(
+                    ship.closest_point_to(ship.target, min_distance=7),
                     self.map_of_game,
                     speed=int(hlt.constants.MAX_SPEED),
                     max_corrections=15,
@@ -272,7 +296,7 @@ class Bot:
                 logging.info("turn %d lasted : %s ms : Going to break", self.nb_turn, self.current_milli_time()
                              - self.start_time)
                 break
-            # If the ship is dockedgit
+            # If the ship is docked
             if ship.docking_status != ship.DockingStatus.UNDOCKED:
                 # Skip this ship
                 # logging.info("Ship %d Docked", ship.id)

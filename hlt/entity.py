@@ -107,7 +107,7 @@ class Planet(Entity):
         self.owner = owner if bool(int(owned)) else None
         self._docked_ship_ids = docked_ships
         self._docked_ships = {}
-        
+
         self.targeted = 0
 
     def get_docked_ship(self, ship_id):
@@ -120,7 +120,7 @@ class Planet(Entity):
         """
         return self._docked_ships.get(ship_id)
 
-    def all_docked_ships(self):
+    def all_docked_ships(self) -> list:
         """
         The list of all ships docked into the planet
 
