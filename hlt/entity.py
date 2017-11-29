@@ -109,6 +109,7 @@ class Planet(Entity):
         self._docked_ships = {}
 
         self.targeted = 0
+        self.defended = 0
 
     def get_docked_ship(self, ship_id):
         """
@@ -448,6 +449,8 @@ class Position(Entity):
         self.health = None
         self.owner = None
         self.id = None
+
+        self.linked_planet = None
 
     def _link(self, players, planets):
         raise NotImplementedError("Position should not have link attributes.")
