@@ -27,7 +27,7 @@ class Bot:
         """
         :param game: The game data
         """
-        self.TIMEOUT_PROTECTION = 1700
+        self.TIMEOUT_PROTECTION = 120
         self.game = game
         self.enemy_ship = []
         self.enemy_planets = []
@@ -40,12 +40,15 @@ class Bot:
         self.map_of_game = game_map.Map(0, 0, 0)
         self.nb_turn = 0
         self.barycenter_ship = entity.Position(0, 0)
+        self.barycenter_planet = entity.Position(0, 0)
         self.start_time = 0
         self.ship_planet_target = dict()
         self.ship_planet_colonise = dict()
-        self.ship_ship_target = dict()
+        self.ship_ship_crash = dict()
         self.ship_planet_attack = dict()
         self.ship_planet_defend = dict()
+        self.cant_move_ship = dict()
+        self.ship_planet_destroy = dict()
 
     @staticmethod
     def current_milli_time():
@@ -88,7 +91,17 @@ class Bot:
                     self.enemy_planets.append(planet)
             else:
                 self.neutral_planets.append(planet)
-        # Calculate the barycenter of all ship
+        # Calculate the barycenter of all planet
+        if self.my_planets:
+            n = 0
+            x = 0
+            y = 0
+            for planet in self.my_planets:
+                n += 1
+                x += planet.x
+                y += planet.y
+            self.barycenter_planet.x = x / n
+            self.barycenter_planet.y = y / n
         if self.map_of_game.get_me().all_ships():
             n = 0
             x = 0
@@ -100,9 +113,17 @@ class Bot:
             self.barycenter_ship.x = x / n
             self.barycenter_ship.y = y / n
 
-    def select_target_3(self, ship: entity.Ship, max_ship_planet: int = 100, distance_to_look: int = 3000) \
+        for ship in self.my_undocked_ships:
+            if ship.id in self.ship_planet_colonise:
+                if self.ship_planet_colonise[ship.id].free_dock() > self.ship_planet_colonise[ship.id].targeted:
+                    ship.target = self.ship_planet_colonise[ship.id]
+                    ship.target.targeted += 1
+                    ship.action = "colonise"
+
+    def select_target_3(self, ship: entity.Ship, max_ship_planet: int = 100, distance_to_look: int = 3000, early=0) \
             -> entity.Ship:
         """
+        :param early: If we are in early game or not
         :param max_ship_planet: the max number of ship / planet
         :param distance_to_look:  the max distance to look for a planet to colonise
         :param ship: the ship that need a target
@@ -110,85 +131,108 @@ class Bot:
         :return ship: the amended ship with a target and an action
         """
 
-        # logging.info("Select target for ship :%s", ship.id)
-        logging.info("Start targeting for ship %d", ship.id)
         # We check if the ship already has a target
         if ship.id in self.ship_planet_colonise:
-            if self.ship_planet_colonise[ship.id].free_dock() > self.ship_planet_colonise[ship.id].targeted:
+            if self.ship_planet_colonise[ship.id].free_dock() >= self.ship_planet_colonise[ship.id].targeted:
                 ship.target = self.ship_planet_colonise[ship.id]
-                ship.target.targeted += 1
                 ship.action = "colonise"
-                # logging.info("Keep this target")
+                logging.info("Ship: %d going to colonise planet : %d", ship.id, ship.target.id)
                 return ship
-        if ship.id in self.ship_ship_target:
-            logging.info("ship %d had already a ship target : %d", ship.id, self.ship_ship_target[ship.id].id)
-            if self.ship_ship_target[ship.id] in self.enemy_ship:
-                ship.target = self.ship_ship_target[ship.id]
-                ship.action = "attack docked"
-                # logging.info("Keep this target")
+            else:
+                logging.info("planet %d is crowded with %d", self.ship_planet_colonise[ship.id].id, self.ship_planet_colonise[ship.id].targeted)
+                ship.action = "no target"
+        if ship.id in self.ship_ship_crash:
+            if self.ship_ship_crash[ship.id] in self.enemy_ship:
+                ship.target = self.ship_ship_crash[ship.id]
+                ship.action = "ship crash"
                 return ship
+            else:
+                ship.action = "no target"
         if ship.id in self.ship_planet_defend:
-            logging.info("ship %d had already a defense target : %s", ship.id, self.ship_planet_defend[ship.id])
-            ship.target = self.ship_planet_defend[ship.id]
-            ship.target.linked_planet.defended += 1
-            ship.action = "defend"
-            # logging.info("Keep this target")
+            if self.ship_planet_defend[ship.id] in self.my_planets:
+                # If the planet is still to me going to defend
+                ship.target = self.defend_planet(self.ship_planet_defend[ship.id])
+                if ship.target:
+                    # There is a ship near the planet, so we will attack
+                    ship.action = "crash ship"
+                    return ship
+                else:
+                    ship.action = "defend"
+                    ship.target = None
+                    return ship
+            else:
+                ship.action = "no target"
+        if ship.id in self.ship_planet_destroy:
+            if self.ship_planet_attack[ship.id] in self.enemy_planets:
+                ship.target = self.ship_planet_destroy[ship.id]
+                ship.action = "destroy planet"
+                return ship
+            else:
+                ship.action = "no target"
+        if ship.id in self.ship_planet_attack:
+            if self.ship_planet_attack[ship.id] in self.enemy_planets:
+                ship.target = self.ship_planet_defend[ship.id]
+                ship.action = "attack docked"
+            return ship
+        else:
+            ship.action = "no target"
+
+        # For each planet in the self.game (only non-destroyed planets are included) Only used for early game
+        if early:
+            for planet in self.neutral_planets + self.my_planets:
+                if planet.targeted >= planet.free_dock() or planet.targeted >= max_ship_planet:
+                    # if the planet is full or if there is too much ship going skip this planet
+                    continue
+                dist = ship.calculate_distance_between(planet)
+                if distance_to_look >= dist:
+                    distance_to_look = dist
+                    ship.target = planet
+                    self.ship_planet_colonise[ship.id] = ship.target
+                    ship.action = "colonise"
+            if ship.target:
+                ship.target.targeted += 1
+            else:
+                ship = self.select_target_3(ship)
             return ship
 
-        # For each planet in the self.game (only non-destroyed planets are included)
-        for planet in self.neutral_planets + self.my_planets:
-            if planet.targeted >= planet.free_dock() or planet.targeted >= max_ship_planet:
-                # if the planet is full or if there is too much ship going skip this planet
-                continue
-            dist = ship.calculate_distance_between(planet)
-            if distance_to_look >= dist:
-                distance_to_look = dist
-                ship.target = planet
-                self.ship_planet_colonise[ship.id] = ship.target
-                ship.action = "colonise"
-                # ship.target = map_of_game.get_planet(1)
-                # logging.info("Ship = %s Distance : %s Planete = %s", ship.id, dist, planet.id)
-
-        if ship.action != "colonise":
+        # If the previous target is now invalid
+        if ship.action == "no target":
             # Attack an enemy planet
             if self.enemy_planets:
+                # If there are still enemy planets
                 invaded_planet = self.nearest_target_planet(ship, Genre.enemyPlanet)
                 # Check if all the ship of the planet are already targeted
                 for bad_ship in invaded_planet.all_docked_ships():
                     if not bad_ship.targeted:
                         ship.target = bad_ship
                         ship.target.targeted += 1
-                        self.ship_ship_target[ship.id] = ship.target
+                        self.ship_ship_crash[ship.id] = ship.target
                         ship.action = "attack docked"
-                        break
-                if ship.action != "attack docked":
-                    # All the of the planet ship are already targeted going to defend
-                    planet_to_defend = self.nearest_target_planet(ship, Genre.myPlanet)
-                    if planet_to_defend.defended < 5:
-                        # If there is less than 5 ship defending the planet
-                        ship.target = self.defend_planet(planet_to_defend)
-                        ship.target.linked_planet = planet_to_defend
-                        self.ship_planet_defend[ship.id] = ship.target
-                        ship.action = "defend"
-                    else:
-                        # Otherwise attack a random ship
-                        ship.target = random.choice(self.enemy_ship)
-                        self.ship_ship_target[ship.id] = ship.target
-                        ship.action = "ship"
-                # logging.info("Attack target planet: %s", ship.target)
-                return ship
+                        return ship
+
+        if ship.action == "no target":
+            # Attack a random ship
+            ship.target = random.choice(self.enemy_ship)
+            self.ship_ship_crash[ship.id] = ship.target
+            ship.action = "crash ship"
             # If there is no more Planet start to attack other ship
+            return ship
+
+        if not ship.action:
+            # First time we choose a task for this ship
+            origin_planet = self.nearest_target_planet(ship, Genre.myPlanet)
+            if origin_planet.defended < 3:
+                ship.target = entity.Position(ship.x, ship.y)
+                ship.action = "defend"
+                origin_planet.defended += 1
+                self.ship_planet_defend[ship.id] = origin_planet
+                return ship
             else:
-                ship.target = random.choice(self.enemy_ship)
-                logging.info("The targeted ship is : %s", ship.target)
-                self.ship_ship_target[ship.id] = ship.target
-                ship.action = "ship"
+                ship.action = "no target"
+                ship = self.select_target_3(ship)  # We redo the process to find the appropriate target for the ship
                 return ship
 
-        ship.target.targeted += 1
-        return ship
-
-    def normal_navigation(self, ship, avoid_ship, correction=10, angular=5):
+    def normal_navigation(self, ship, avoid_ship, correction=10, angular=5, avoid=True):
         # If we can't dock, we move towards the closest empty point near this ship.target (by using closest_point_to)
         # with constant speed. Don't worry about pathfinding for now, as the command will do it for you.
         # We run this navigate command each turn until we arrive to get the latest move.
@@ -201,10 +245,11 @@ class Bot:
             ship.closest_point_to(ship.target),
             self.map_of_game,
             angular_step=angular,
+            avoid_obstacles=avoid,
             max_corrections=correction,
             speed=int(hlt.constants.MAX_SPEED),
             ignore_ships=avoid_ship)
-        logging.info("Finished Normal navigation for ship %d with %s order", ship.id, navigate_command)
+        # logging.info("Finished Normal navigation for ship %d with %s order", ship.id, navigate_command)
         # logging.info("Normal Navigation lasted : %s ms", current_milli_time() - start_time_measure)
         # If the move is possible, add it to the command_queue (if there are too many obstacles on the way
         # or we are trapped (or we reached our destination!), navigate_command will return null;
@@ -216,19 +261,28 @@ class Bot:
             navigate_command = ship.navigate(
                 ship.closest_point_to(ship.target),
                 self.map_of_game,
+                avoid_obstacles=avoid,
                 angular_step=20,
                 max_corrections=18,
                 speed=int(hlt.constants.MAX_SPEED),
                 ignore_ships=avoid_ship)
-            logging.info("Finished Advanced navigation for ship %d with %s order", ship.id, navigate_command)
+            # logging.info("Finished Advanced navigation for ship %d with %s order", ship.id, navigate_command)
             # logging.info("Advanced Navigation lasted : %s ms", current_milli_time() - start_time_measure_special)
         if navigate_command:
             return navigate_command
 
-    def decide_navigation(self, ship, avoid_ship=False, correction=10, angular=5):
-        logging.info("Enter Navigation for ship : %d, ship action is : %s", ship.id, ship.action)
+    def decide_navigation(self, ship, ignore_ship=False, correction=18, angular=10):
+        # logging.info("Enter Navigation for ship : %d, ship action is : %s", ship.id, ship.action)
         navigate_command = 0
-        start_time_measure = self.current_milli_time()
+        avoid = True
+        if ship.id in self.cant_move_ship and self.cant_move_ship[ship.id] >= 2:
+            # Force to avoid other ship if can't find a other way
+            logging.info("to mush try, going to ignore other ship. ship : %d", ship.id)
+            ignore_ship = True
+            avoid = False  # Will disable obstacle avoidance
+            self.cant_move_ship.pop(ship.id)
+
+        # start_time_measure = self.current_milli_time()
         # If we can dock, let's (try to) dock. If two ships try to dock at once, neither will be able to.
         if ship.action == "colonise":
             if ship.can_dock(ship.target):
@@ -239,13 +293,14 @@ class Bot:
                     ship.closest_point_to(ship.target),
                     self.map_of_game,
                     max_corrections=180,
+                    avoid_obstacles=avoid,
                     angular_step=2,
                     speed=int(hlt.constants.MAX_SPEED / 2),
                     ignore_ships=False)
-                logging.info("Finished Precision navigation for ship %d with %s order", ship.id, navigate_command)
-                logging.info("Precision Navigation lasted : %s ms", self.current_milli_time() - start_time_measure)
+                # logging.info("Finished Precision navigation for ship %d with %s order", ship.id, navigate_command)
+                # logging.info("Precision Navigation lasted : %s ms", self.current_milli_time() - start_time_measure)
             else:
-                navigate_command = self.normal_navigation(ship, avoid_ship, correction, angular)
+                navigate_command = self.normal_navigation(ship, ignore_ship, correction, angular, avoid)
 
         # If the flag "planet" is raise we attack the planet
         elif ship.action == "destroy planet":
@@ -259,9 +314,9 @@ class Bot:
                     avoid_obstacles=False,
                     ignore_ships=True,
                     ignore_planets=True)
-                logging.info("Finished destroy planet procedure for ship %d with %s order", ship.id, navigate_command)
+                # logging.info("Finished destroy planet procedure for ship %d with %s order", ship.id, navigate_command)
             else:
-                navigate_command = self.normal_navigation(ship, avoid_ship, correction, angular)
+                navigate_command = self.normal_navigation(ship, ignore_ship, correction, angular, avoid)
 
         elif ship.action == "attack docked":
             if ship.can_suicide(ship.target):
@@ -270,12 +325,13 @@ class Bot:
                     ship.closest_point_to(ship.target, min_distance=2),
                     self.map_of_game,
                     speed=int(hlt.constants.MAX_SPEED),
+                    avoid_obstacles=avoid,
                     max_corrections=15,
                     ignore_ships=False,
                     ignore_planets=False)
-                logging.info("Finished destroy planet procedure for ship %d with %s order", ship.id, navigate_command)
+                # logging.info("Finished destroy planet procedure for ship %d with %s order", ship.id, navigate_command)
             else:
-                navigate_command = self.normal_navigation(ship, avoid_ship, correction, angular)
+                navigate_command = self.normal_navigation(ship, ignore_ship, correction, angular, avoid)
 
         elif ship.action == "defend":
             if ship.can_suicide(ship.target):
@@ -284,15 +340,16 @@ class Bot:
                     ship.target,
                     self.map_of_game,
                     speed=int(hlt.constants.MAX_SPEED),
+                    avoid_obstacles=avoid,
                     max_corrections=15,
                     ignore_ships=False,
                     ignore_planets=False)
-                logging.info("Finished destroy planet procedure for ship %d with %s order", ship.id, navigate_command)
+                # logging.info("Finished defend planet procedure for ship %d with %s order", ship.id, navigate_command)
             else:
-                navigate_command = self.normal_navigation(ship, avoid_ship, correction, angular)
+                navigate_command = self.normal_navigation(ship, ignore_ship, correction, angular, avoid)
 
         # If the flag ship is raise we attack a ship
-        elif ship.action == "ship":
+        elif ship.action == "crash ship":
             if ship.can_kill(ship.target):
                 # We add the command by appending it to the command_queue
                 navigate_command = ship.navigate(
@@ -303,12 +360,18 @@ class Bot:
                     avoid_obstacles=False,
                     ignore_ships=True,
                     ignore_planets=True)
-                logging.info("Finished Attack ship procedure for ship %d with %s order", ship.id, navigate_command)
+                # logging.info("Finished Attack ship procedure for ship %d with %s order", ship.id, navigate_command)
             else:
-                navigate_command = self.normal_navigation(ship, avoid_ship, correction, angular)
+                navigate_command = self.normal_navigation(ship, ignore_ship, correction, angular, avoid)
 
+        if ignore_ship:
+            logging.info("Target: %d  Action: %s  Nav: %s", ship.target.id, ship.action, navigate_command)
         if navigate_command:
             return navigate_command
+        elif ship.id in self.cant_move_ship:
+            self.cant_move_ship[ship.id] += 1
+        else:
+            self.cant_move_ship[ship.id] = 1
 
     def strategy_early_game(self):
         # For every ship that I control
@@ -325,11 +388,14 @@ class Bot:
                 # logging.info("Ship %d Docked", ship.id)
                 continue
 
-            ship = self.select_target_3(ship, max_ship_planet=2)
+            if self.nb_turn < 60:
+                ship = self.select_target_3(ship, max_ship_planet=2, early=1)
+            else:
+                ship = self.select_target_3(ship, early=1)
             # logging.info("Select target lasted : %s ms", self.current_milli_time() - start_time_select)
             navigate_command = self.decide_navigation(ship)
 
-            logging.info("Ship %d has %s move Command", ship.id, navigate_command)
+            # logging.info("Ship %d has %s move Command", ship.id, navigate_command)
             if navigate_command:
                 self.command_queue.append(navigate_command)
 
@@ -350,11 +416,16 @@ class Bot:
                 logging.info("turn %d lasted : %s ms : Going to break", self.nb_turn, self.current_milli_time()
                              - self.start_time)
                 break
+            start_time_select = self.current_milli_time()
             ship = self.select_target_3(ship)
-            # logging.info("Select target lasted : %s ms", self.current_milli_time() - start_time_select)
+            # logging.info("Select target for ship %d lasted : %s ms", ship.id, self.current_milli_time() - start_time_select)
+            # logging.info("Ship %d has %s on %d target", ship.id, ship.action, ship.target.id)
+            start_time_nav = self.current_milli_time()
             navigate_command = self.decide_navigation(ship)
+            if self.current_milli_time() - start_time_nav > 5:
+                logging.info("ship %d : Navigation for %d to %s lasted : %s ms", ship.id, ship.target.id, ship.action, self.current_milli_time() - start_time_nav)
 
-            logging.info("Ship %d has %s move Command", ship.id, navigate_command)
+            # logging.info("Ship %d has %s move Command", ship.id, navigate_command)
             if navigate_command:
                 self.command_queue.append(navigate_command)
 
@@ -390,11 +461,14 @@ class Bot:
                     closest = planet
             return closest
 
-    def nearest_target_ship(self, origin: entity.Entity, target_type: Genre = Genre.neutralPlanet, retarget=0) -> entity.Ship:
+    def nearest_target_ship(self, origin: entity.Entity, target_type: Genre = Genre.neutralPlanet, retarget=False) -> entity.Ship:
         short_dist = 3000
         closest = 0
         if target_type == Genre.enemyShip and self.enemy_ship:
             for enemyShip in self.enemy_ship:
+                if enemyShip.targeted and not retarget:
+                    # If the ship already have a order skip it
+                    continue
                 dist = enemyShip.calculate_distance_between(origin)
                 if dist < short_dist:
                     short_dist = dist
@@ -402,7 +476,7 @@ class Bot:
             return closest
         elif target_type == Genre.myShip and self.my_undocked_ships:
             for myShip in self.my_undocked_ships:
-                if myShip.action or not retarget:
+                if myShip.action and not retarget and myShip.action != "no target":
                     # If the ship already have a order skip it
                     continue
                 dist = myShip.calculate_distance_between(origin)
@@ -411,20 +485,20 @@ class Bot:
                     closest = myShip
             return closest
 
-    def go_colonise(self, planet: entity.Planet) -> None:
+    def go_colonise(self, planet: entity.Planet, max_target=100) -> None:
         nearest_ship = 1
-        while planet.targeted < planet.free_dock() and nearest_ship:
-            logging.info("Il y a %d slot libre sur la planet %d, %d vaiseaux y vont", planet.id, planet.free_dock(), planet.targeted)
-            nearest_ship = self.nearest_target_ship(planet, Genre.myShip)
+        while planet.targeted < planet.free_dock() and nearest_ship and planet.targeted < max_target:
+            # logging.info("Il y a %d slot libre sur la planet %d, %d vaiseaux y vont", planet.free_dock(), planet.id, planet.targeted)
+            nearest_ship = self.nearest_target_ship(planet, Genre.myShip, retarget=False)
+            # logging.info("Le vaisseau le plus proche est : %s", nearest_ship)
             if nearest_ship:
-                nearest_ship.target = planet
-                self.ship_planet_colonise[nearest_ship.id] = nearest_ship.target
-                nearest_ship.action = "colonise"
+                self.ship_planet_colonise[nearest_ship.id] = planet
+                logging.info("ship: %d go to planet: %s", nearest_ship.id, self.ship_planet_colonise[nearest_ship.id])
                 planet.targeted += 1
+                nearest_ship.target = planet
+                nearest_ship.action = "colonise"
 
-    @staticmethod
-    def defend_planet(planet: entity.Planet) -> entity.Position:
-        angle = random.randint(1, 360)
-        target_dx = math.cos(math.radians(angle)) * 10
-        target_dy = math.sin(math.radians(angle)) * 10
-        return entity.Position(planet.x + target_dx, planet.y + target_dy)
+    def defend_planet(self, planet: entity.Planet) -> entity.Ship:
+        closest_enemy_ship = self.nearest_target_ship(planet, Genre.enemyShip, True)
+        if closest_enemy_ship and planet.calculate_distance_between(closest_enemy_ship) < 15:
+            return closest_enemy_ship
