@@ -156,10 +156,12 @@ class Bot:
                     # There is a ship near the planet, so we will attack
                     ship.action = "crash ship"
                     return ship
-                else:
+                elif self.ship_planet_defend[ship.id].defended <= 3:
                     ship.action = "defend"
                     ship.target = None
                     return ship
+                else:
+                    ship.action = "no target"
             else:
                 ship.action = "no target"
         if ship.id in self.ship_planet_destroy:
