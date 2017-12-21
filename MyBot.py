@@ -20,7 +20,7 @@ from function import myclass
 
 # GAME START
 # Here we define the bot's name as Settler and initialize the game, including communication with the Halite engine.
-bot = myclass.Bot(hlt.Game("ColoNessV11"))
+bot = myclass.Bot(hlt.Game("ColoNessV12"))
 # Then we print our start message to the logs
 logging.info("Starting my ColoNess bot!")
 
