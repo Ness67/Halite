@@ -27,7 +27,7 @@ class Bot:
         """
         :param game: The game data
         """
-        self.TIMEOUT_PROTECTION = 120
+        self.TIMEOUT_PROTECTION = 1700
         self.game = game
         self.enemy_ship = []
         self.enemy_planets = []
